@@ -1,0 +1,32 @@
+{
+	"cSpell.words": ["Adafruit", "OLED", "pixe", "SWITCHCAPVCC", "yeey"],
+	"files.associations": {
+		"*.sqlbook": "sql",
+		"*.ndjson": "jsonl",
+		"*.dbclient-js": "javascript",
+		"wifiudp.h": "c",
+		"wifimanager.h": "c",
+		"wire.h": "c",
+		"random": "cpp",
+		"*.tcc": "cpp",
+		"chrono": "cpp",
+		"compare": "cpp",
+		"deque": "cpp",
+		"list": "cpp",
+		"string": "cpp",
+		"vector": "cpp",
+		"memory_resource": "cpp",
+		"optional": "cpp",
+		"functional": "cpp",
+		"memory": "cpp",
+		"numeric": "cpp",
+		"ostream": "cpp",
+		"ranges": "cpp",
+		"ratio": "cpp",
+		"string_view": "cpp",
+		"tuple": "cpp",
+		"type_traits": "cpp",
+		"typeinfo": "cpp",
+		"variant": "cpp"
+	}
+}
