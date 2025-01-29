@@ -40,9 +40,9 @@ void buttonCheckPress()
             else
                 pagesSetDisplayedPage("time");
         }
-        Serial.print("Press duration:");
+        Serial.print("Press duration: ");
         Serial.print(millis() - pressStart);
-        Serial.println(" ms");
+        Serial.println("ms");
         pressStart = 0;
     }
 }

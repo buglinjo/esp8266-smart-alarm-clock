@@ -18,9 +18,8 @@ void pagesShowTimePage()
         String time = datetimeGetTimeStr();
 
         // Display the time
-        Serial.println();
         Serial.print("Local time: ");
-        Serial.print(time);
+        Serial.println(time);
 
         displayWriteTextCenter(time.c_str());
     }
@@ -35,9 +34,8 @@ void pagesShowDatePage()
         String date = datetimeGetDateStr();
 
         // Display the date
-        Serial.println();
         Serial.print("Local date: ");
-        Serial.print(date);
+        Serial.println(date);
 
         displayWriteTextCenter(date.c_str());
     }
