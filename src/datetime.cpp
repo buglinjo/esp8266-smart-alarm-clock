@@ -1,6 +1,9 @@
 #include "WifiUDP.h"
 #include "NTPClient.h"
 #include "Timezone.h"
+#include "ESP8266HTTPClient.h"
+#include "WiFiClientSecure.h"
+#include <ArduinoJson.h>
 
 // Define NTP properties
 #define NTP_OFFSET 60 * 60                       // In seconds
@@ -15,6 +18,28 @@ NTPClient timeClient(ntpUDP, NTP_ADDRESS, NTP_OFFSET, NTP_INTERVAL);
 const char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec"};
 const char *ampm[] = {"AM", "PM"};
+
+struct DateTime
+{
+    int year;
+    int month;
+    int day;
+    int hour;
+    int minute;
+    int second;
+    int millisecond;
+    String dateTime;
+    String date;
+    String time;
+    String timezone;
+    String dayOfWeek;
+    bool dstActive;
+    bool isSet;
+    unsigned long lastRefreshedAt;
+};
+
+String localTimezone = "";
+DateTime dt;
 
 unsigned long lastRefreshedAt = 0;
 time_t lastRefreshedTime = 0;
@@ -55,8 +80,138 @@ time_t datetimeGet()
     return local;
 }
 
+String datetimeGetTimezone()
+{
+    // Return cached timezone
+    if (localTimezone != "")
+        return localTimezone;
+
+    WiFiClient client;
+    HTTPClient http;
+
+    // Get timezone details
+    String url = "http://ip-api.com/json";
+    http.begin(client, url.c_str());
+    int responseCode = http.GET();
+
+    if (responseCode == 200)
+    {
+        String body = http.getString();
+        JsonDocument doc;
+        DeserializationError error = deserializeJson(doc, body);
+
+        if (error)
+        {
+            Serial.print(F("deserializeJson() failed: "));
+            Serial.println(error.f_str());
+            return localTimezone;
+        }
+
+        localTimezone = doc["timezone"].as<String>();
+
+        Serial.print("Got Timezone: ");
+        Serial.println(localTimezone);
+    }
+    else
+    {
+        Serial.print("Error getting timezone. Code: ");
+        Serial.println(responseCode);
+    }
+
+    http.end();
+    return localTimezone;
+}
+
+DateTime datetimeGetTime()
+{
+    // Return cached time
+    if (dt.isSet && dt.lastRefreshedAt + CLIENT_REFRESH_INTERVAL > millis())
+        return dt;
+
+    WiFiClientSecure client;
+    HTTPClient http;
+
+    String url = "https://timeapi.io/api/time/current/zone?timeZone=America%2FNew_York";
+
+    client.setInsecure();
+    client.connect(url, 443);
+
+    // Get fresh time from the server
+    http.begin(client, url.c_str());
+    int responseCode = http.GET();
+
+    if (responseCode == 200)
+    {
+        String body = http.getString();
+        JsonDocument doc;
+        DeserializationError error = deserializeJson(doc, body);
+
+        if (error)
+        {
+            Serial.print(F("deserializeJson() failed: "));
+            Serial.println(error.f_str());
+            return dt;
+        }
+
+        dt.year = doc["year"];
+        dt.month = doc["month"];
+        dt.day = doc["day"];
+        dt.hour = doc["hour"];
+        dt.minute = doc["minute"];
+        dt.second = doc["seconds"];
+        dt.millisecond = doc["milliSeconds"];
+        dt.dateTime = doc["dateTime"].as<String>();
+        dt.date = doc["date"].as<String>();
+        dt.time = doc["time"].as<String>();
+        dt.timezone = doc["timezone"].as<String>();
+        dt.dayOfWeek = doc["dayOfWeek"].as<String>();
+        dt.dstActive = doc["dstActive"];
+        dt.isSet = true;
+        dt.lastRefreshedAt = millis();
+
+        Serial.println("----------------- Got time ----------------");
+        Serial.print("year: ");
+        Serial.println(dt.year);
+        Serial.print("month: ");
+        Serial.println(dt.month);
+        Serial.print("day: ");
+        Serial.println(dt.day);
+        Serial.print("hour: ");
+        Serial.println(dt.hour);
+        Serial.print("minute: ");
+        Serial.println(dt.minute);
+        Serial.print("second: ");
+        Serial.println(dt.second);
+        Serial.print("millisecond: ");
+        Serial.println(dt.millisecond);
+        Serial.print("dateTime: ");
+        Serial.println(dt.dateTime);
+        Serial.print("date: ");
+        Serial.println(dt.date);
+        Serial.print("time: ");
+        Serial.println(dt.time);
+        Serial.print("timezone: ");
+        Serial.println(dt.timezone);
+        Serial.print("dayOfWeek: ");
+        Serial.println(dt.dayOfWeek);
+        Serial.print("lastRefreshedAt: ");
+        Serial.println(dt.lastRefreshedAt);
+        Serial.println("----------------- END time ----------------");
+    }
+    else
+    {
+        Serial.print("Error getting local time. Code: ");
+        Serial.println(responseCode);
+    }
+
+    http.end();
+    return dt;
+}
+
 String datetimeGetTimeStr()
 {
+    datetimeGetTimezone();
+    datetimeGetTime();
     String time;
     time_t local = datetimeGet();
 

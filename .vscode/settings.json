@@ -27,6 +27,9 @@
 		"tuple": "cpp",
 		"type_traits": "cpp",
 		"typeinfo": "cpp",
-		"variant": "cpp"
+		"variant": "cpp",
+		"array": "cpp",
+		"istream": "cpp",
+		"utility": "cpp"
 	}
 }
