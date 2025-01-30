@@ -150,35 +150,6 @@ void handleTimeUpdate(String body)
     dt.dstActive = doc["dstActive"];
     dt.isSet = true;
     dt.lastRefreshedAt = millis();
-
-    Serial.println("----------------- Got time ----------------");
-    Serial.print("year: ");
-    Serial.println(dt.year);
-    Serial.print("month: ");
-    Serial.println(dt.month);
-    Serial.print("day: ");
-    Serial.println(dt.day);
-    Serial.print("hour: ");
-    Serial.println(dt.hour);
-    Serial.print("minute: ");
-    Serial.println(dt.minute);
-    Serial.print("second: ");
-    Serial.println(dt.second);
-    Serial.print("millisecond: ");
-    Serial.println(dt.millisecond);
-    Serial.print("dateTime: ");
-    Serial.println(dt.dateTime);
-    Serial.print("date: ");
-    Serial.println(dt.date);
-    Serial.print("time: ");
-    Serial.println(dt.time);
-    Serial.print("timezone: ");
-    Serial.println(dt.timezone);
-    Serial.print("dayOfWeek: ");
-    Serial.println(dt.dayOfWeek);
-    Serial.print("lastRefreshedAt: ");
-    Serial.println(dt.lastRefreshedAt);
-    Serial.println("----------------- END time ----------------");
 }
 
 void datetimeSetTime()
