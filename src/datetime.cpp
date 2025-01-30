@@ -1,90 +1,92 @@
-#include "WifiUDP.h"
-#include "NTPClient.h"
-#include "Timezone.h"
+#include "datetime.h"
 #include "ESP8266HTTPClient.h"
 #include "WiFiClientSecure.h"
 #include <ArduinoJson.h>
 
-// Define NTP properties
-#define NTP_OFFSET 60 * 60                       // In seconds
-#define NTP_INTERVAL 60 * 1000                   // In miliseconds
-#define NTP_ADDRESS "north-america.pool.ntp.org" // change this to whatever pool is closest (see ntp.org)
-#define CLIENT_REFRESH_INTERVAL 5000             // Define for the refresh interval in milliseconds
+#define TIME_UPDATE_INTERVAL 10000 // Define for the time update interval in milliseconds
 
-// Set up the NTP UDP client
-WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, NTP_ADDRESS, NTP_OFFSET, NTP_INTERVAL);
-
-const char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec"};
 const char *ampm[] = {"AM", "PM"};
-
-struct DateTime
-{
-    int year;
-    int month;
-    int day;
-    int hour;
-    int minute;
-    int second;
-    int millisecond;
-    String dateTime;
-    String date;
-    String time;
-    String timezone;
-    String dayOfWeek;
-    bool dstActive;
-    bool isSet;
-    unsigned long lastRefreshedAt;
-};
 
 String localTimezone = "";
 DateTime dt;
 
-unsigned long lastRefreshedAt = 0;
-time_t lastRefreshedTime = 0;
+int DateTime::hourFormat12()
+{
+    if (hour == 0)
+        return 12; // 12 midnight
+    else if (hour > 12)
+        return hour - 12;
+    else
+        return hour;
+}
+
+uint8_t DateTime::isPM()
+{
+    return (hour >= 12);
+}
+
+String DateTime::getTimeStr(bool colon)
+{
+    if (!isSet)
+        return "";
+
+    String time;
+    time += hourFormat12();
+    if (colon)
+        time += ":";
+    else
+        time += " ";
+
+    if (minute < 10)
+        time += "0";
+    time += minute;
+    time += " ";
+    time += ampm[isPM()];
+
+    return time;
+}
+
+String DateTime::getDateStr()
+{
+    if (!isSet)
+        return "";
+
+    String date;
+    date += months[month - 1];
+    date += " ";
+    date += day;
+    date += ", ";
+    date += year;
+
+    return date;
+}
+
+String DateTime::getDatetimeStr()
+{
+    return date + " " + time;
+}
 
 void datetimeInit()
 {
-    timeClient.begin();
+    datetimeSetTimezone();
 }
 
-time_t datetimeGet()
+void datetimeUpdate()
 {
-    // If the current time is fresh and does not have to be refreshed
-    if (lastRefreshedTime != 0 && (lastRefreshedAt + CLIENT_REFRESH_INTERVAL > millis()))
+    unsigned long currentMillis = millis();
+    if (currentMillis - dt.lastRefreshedAt >= TIME_UPDATE_INTERVAL)
     {
-        Serial.println("Returning cached time...");
-        return lastRefreshedTime;
+        dt.lastRefreshedAt = currentMillis;
+        datetimeSetTime();
     }
-
-    // update the NTP client and get the UNIX UTC timestamp
-    Serial.println("Updating the current time...");
-    timeClient.update();
-    unsigned long epochTime = timeClient.getEpochTime();
-
-    // convert received time stamp to time_t object
-    time_t local, utc;
-    utc = epochTime;
-
-    // Then convert the UTC UNIX timestamp to local time
-    TimeChangeRule usEDT = {"EDT", Second, Sun, Mar, 2, -300};
-    TimeChangeRule usEST = {"EST", First, Sun, Nov, 2, -360};
-    Timezone usEastern(usEDT, usEST);
-    local = usEastern.toLocal(utc);
-
-    // Set the lastRefreshedTime and lastRefreshedAt params
-    lastRefreshedTime = local;
-    lastRefreshedAt = millis();
-
-    return local;
 }
 
-String datetimeGetTimezone()
+void datetimeSetTimezone()
 {
     // Return cached timezone
     if (localTimezone != "")
-        return localTimezone;
+        return;
 
     WiFiClient client;
     HTTPClient http;
@@ -104,7 +106,7 @@ String datetimeGetTimezone()
         {
             Serial.print(F("deserializeJson() failed: "));
             Serial.println(error.f_str());
-            return localTimezone;
+            return;
         }
 
         localTimezone = doc["timezone"].as<String>();
@@ -119,19 +121,72 @@ String datetimeGetTimezone()
     }
 
     http.end();
-    return localTimezone;
 }
 
-DateTime datetimeGetTime()
+void handleTimeUpdate(String body)
 {
-    // Return cached time
-    if (dt.isSet && dt.lastRefreshedAt + CLIENT_REFRESH_INTERVAL > millis())
-        return dt;
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, body);
 
+    if (error)
+    {
+        Serial.print(F("deserializeJson() failed: "));
+        Serial.println(error.f_str());
+        return;
+    }
+
+    dt.year = doc["year"];
+    dt.month = doc["month"];
+    dt.day = doc["day"];
+    dt.hour = doc["hour"];
+    dt.minute = doc["minute"];
+    dt.second = doc["seconds"];
+    dt.millisecond = doc["milliSeconds"];
+    dt.dateTime = doc["dateTime"].as<String>();
+    dt.date = doc["date"].as<String>();
+    dt.time = doc["time"].as<String>();
+    dt.timezone = doc["timezone"].as<String>();
+    dt.dayOfWeek = doc["dayOfWeek"].as<String>();
+    dt.dstActive = doc["dstActive"];
+    dt.isSet = true;
+    dt.lastRefreshedAt = millis();
+
+    Serial.println("----------------- Got time ----------------");
+    Serial.print("year: ");
+    Serial.println(dt.year);
+    Serial.print("month: ");
+    Serial.println(dt.month);
+    Serial.print("day: ");
+    Serial.println(dt.day);
+    Serial.print("hour: ");
+    Serial.println(dt.hour);
+    Serial.print("minute: ");
+    Serial.println(dt.minute);
+    Serial.print("second: ");
+    Serial.println(dt.second);
+    Serial.print("millisecond: ");
+    Serial.println(dt.millisecond);
+    Serial.print("dateTime: ");
+    Serial.println(dt.dateTime);
+    Serial.print("date: ");
+    Serial.println(dt.date);
+    Serial.print("time: ");
+    Serial.println(dt.time);
+    Serial.print("timezone: ");
+    Serial.println(dt.timezone);
+    Serial.print("dayOfWeek: ");
+    Serial.println(dt.dayOfWeek);
+    Serial.print("lastRefreshedAt: ");
+    Serial.println(dt.lastRefreshedAt);
+    Serial.println("----------------- END time ----------------");
+}
+
+void datetimeSetTime()
+{
     WiFiClientSecure client;
     HTTPClient http;
 
-    String url = "https://timeapi.io/api/time/current/zone?timeZone=America%2FNew_York";
+    String url = "https://timeapi.io/api/time/current/zone?timeZone=" + localTimezone;
 
     client.setInsecure();
     client.connect(url, 443);
@@ -142,61 +197,7 @@ DateTime datetimeGetTime()
 
     if (responseCode == 200)
     {
-        String body = http.getString();
-        JsonDocument doc;
-        DeserializationError error = deserializeJson(doc, body);
-
-        if (error)
-        {
-            Serial.print(F("deserializeJson() failed: "));
-            Serial.println(error.f_str());
-            return dt;
-        }
-
-        dt.year = doc["year"];
-        dt.month = doc["month"];
-        dt.day = doc["day"];
-        dt.hour = doc["hour"];
-        dt.minute = doc["minute"];
-        dt.second = doc["seconds"];
-        dt.millisecond = doc["milliSeconds"];
-        dt.dateTime = doc["dateTime"].as<String>();
-        dt.date = doc["date"].as<String>();
-        dt.time = doc["time"].as<String>();
-        dt.timezone = doc["timezone"].as<String>();
-        dt.dayOfWeek = doc["dayOfWeek"].as<String>();
-        dt.dstActive = doc["dstActive"];
-        dt.isSet = true;
-        dt.lastRefreshedAt = millis();
-
-        Serial.println("----------------- Got time ----------------");
-        Serial.print("year: ");
-        Serial.println(dt.year);
-        Serial.print("month: ");
-        Serial.println(dt.month);
-        Serial.print("day: ");
-        Serial.println(dt.day);
-        Serial.print("hour: ");
-        Serial.println(dt.hour);
-        Serial.print("minute: ");
-        Serial.println(dt.minute);
-        Serial.print("second: ");
-        Serial.println(dt.second);
-        Serial.print("millisecond: ");
-        Serial.println(dt.millisecond);
-        Serial.print("dateTime: ");
-        Serial.println(dt.dateTime);
-        Serial.print("date: ");
-        Serial.println(dt.date);
-        Serial.print("time: ");
-        Serial.println(dt.time);
-        Serial.print("timezone: ");
-        Serial.println(dt.timezone);
-        Serial.print("dayOfWeek: ");
-        Serial.println(dt.dayOfWeek);
-        Serial.print("lastRefreshedAt: ");
-        Serial.println(dt.lastRefreshedAt);
-        Serial.println("----------------- END time ----------------");
+        handleTimeUpdate(http.getString());
     }
     else
     {
@@ -205,41 +206,4 @@ DateTime datetimeGetTime()
     }
 
     http.end();
-    return dt;
-}
-
-String datetimeGetTimeStr()
-{
-    datetimeGetTimezone();
-    datetimeGetTime();
-    String time;
-    time_t local = datetimeGet();
-
-    // format the time to 12-hour format with AM/PM and no seconds
-    time += hourFormat12(local);
-    time += ":";
-    if (minute(local) < 10) // add a zero if minute is under 10
-        time += "0";
-    time += minute(local);
-    time += " ";
-    time += ampm[isPM(local)];
-
-    return time;
-}
-
-String datetimeGetDateStr()
-{
-    String date;
-    time_t local = datetimeGet();
-
-    // now format the Time variables into strings with proper names for month, day etc
-    date += days[weekday(local) - 1];
-    date += ", ";
-    date += months[month(local) - 1];
-    date += " ";
-    date += day(local);
-    date += ", ";
-    date += year(local);
-
-    return date;
 }

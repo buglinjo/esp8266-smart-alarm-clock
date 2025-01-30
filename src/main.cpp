@@ -18,4 +18,5 @@ void loop()
 {
   buttonCheckPress();
   pagesDisplay();
+  datetimeUpdate();
 }

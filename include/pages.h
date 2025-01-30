@@ -2,6 +2,9 @@
 #define PAGES_H
 
 #include "Arduino.h"
+#include "datetime.h"
+
+extern DateTime dt;
 
 void pagesShowTimePage();
 void pagesShowDatePage();
